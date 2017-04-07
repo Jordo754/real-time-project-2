@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://npmcdn.com/babel-core@5.8.38/browser.min.js"></script>
+    <script type="text/babel" >
+      (function(){
+        "use strict";
+        
+        //canvas atts
+        let canvas;
+        let ctx;
+        
+        //io atts
+        let socket;
+        let hash;
+        
+        //input
+        let moveDown = false, moveUp = false, moveRight = false, moveLeft = false, expand = false;
+        
+        //drawing atts
+        const users = {};
+        let ores = [];
+        
+        const draw = () => {
+          clientUpdate();
+          
+          ctx.clearRect(0, 0, 500, 300);
+          
+          for (let i = 0; i < ores.length; i++) {
+            const ore = ores[i];
+            
+            ctx.fillStyle = 'gray';
+            ctx.strokeRect(ore.x - 5, ore.y - 5, ore.width + 10, ore.width + 10);
+            ctx.fillRect(ore.x, ore.y, ore.width, ore.width);
+          }
+          
+          const keys = Object.keys(users);
+
+          for(let i = 0; i < keys.length; i++) {
+            const square = users[keys[i]];
+            
+            if (square.colliding) {
+              ctx.fillStyle = 'red';
+            } else if (square.hash === hash) {
+              ctx.fillStyle = "darkgoldenrod";
+            } else {
+              ctx.fillStyle = 'rebeccapurple';
+            }
+
+            ctx.fillRect(square.x, square.y, square.width, square.height);
+          }
+          
+          requestAnimationFrame(draw);
+        };
+        
+        const clientUpdate = () => {
+          const square = users[hash];
+          //input code paired with Cody Van De Mark's functions below
+          //if the user is going up but not off screen
+          //move their destination up (so we can animate)
+          //from our current Y
+          if(moveUp && square.y > 0) {
+            square.y -= 2;
+          }
+          //if the user is going down but not off screen
+          //move their destination down (so we can animate)
+          //from our current y
+          if(moveDown && square.y < 300 - square.height) {
+            square.y += 2;
+          }
+          //if the user is going left but not off screen
+          //move their destination left (so we can animate)
+          //from our current x
+          if(moveLeft && square.x > 0) {
+            square.x -= 2;
+          }
+          //if the user is moving right but not off screen
+          //move their destination right (so we can animate)
+          //from our current x
+          if(moveRight && square.x < 500 - square.width) {
+            square.x += 2;
+          }
+          
+          socket.emit('clientUpdate', square);
+        };
+        
+        const update = (data) => {
+          console.log("derp");
+          //check if the user exists
+          if (!users[data.hash]) {
+            users[data.hash] = data;
+            return;
+          }
+          
+          const square = users[data.hash];
+          
+          if(square.lastUpdate > data.lastUpdate) {
+            //out of date
+            return;
+          }
+          
+          square.lastUpdate = data.lastUpdate;
+          
+          square.x = data.x;
+          square.y = data.y;
+          square.colliding = data.colliding;
+        };
+        
+        const newUser = (data) => {
+          hash = data.hash;
+          users[hash] = data.square;
+          ores = data.ores;
+          requestAnimationFrame(draw);
+        };
+        
+        const removeUser = (data) => {
+          if(users[data]) {
+            delete users[data];
+          }
+        };
+        
+        //Follow 2 functions from Cody Van De Mark
+        //handle key down
+        const keyDownHandler = (e) => {  
+          //grab keycode from keyboard event
+          var keyPressed = e.which;
+          
+          // W OR UP
+          if(keyPressed === 87 || keyPressed === 38) {
+            moveUp = true;
+          }
+          // A OR LEFT
+          else if(keyPressed === 65 || keyPressed === 37) {
+            moveLeft = true;
+          }
+          // S OR DOWN
+          else if(keyPressed === 83 || keyPressed === 40) {
+            moveDown = true;
+          }
+          // D OR RIGHT
+          else if(keyPressed === 68 || keyPressed === 39) {
+            moveRight = true;
+          }
+          
+          //shift key for my own use
+          if (keyPressed === 16) {
+            
+          }
+
+          //if one of these keys is down, let's cancel the browsers
+          //default action so the page doesn't try to scroll on the user
+          if(moveUp || moveDown || moveLeft || moveRight) {
+            e.preventDefault();
+          }
+        };
+        
+        //key up event
+        const keyUpHandler = (e) => {
+          //grab keycode from keyboard event
+          var keyPressed = e.which;
+
+          // W OR UP
+          if(keyPressed === 87 || keyPressed === 38) {
+            moveUp = false;
+          }
+          // A OR LEFT
+          else if(keyPressed === 65 || keyPressed === 37) {
+            moveLeft = false;
+          }
+          // S OR DOWN
+          else if(keyPressed === 83 || keyPressed === 40) {
+            moveDown = false;
+          }
+          // D OR RIGHT
+          else if(keyPressed === 68 || keyPressed === 39) {
+            moveRight = false;
+          }
+          
+          //shift key for my own use
+          if (keyPressed === 16) {
+            
+          }
+        };
+        
+        const ioInit = () => {
+          socket = io.connect();
+          
+          socket.on('join', newUser);
+          
+          socket.on('serverUpdate', update);
+          
+          socket.on('leave', removeUser);
+          
+          //key listeners
+          document.body.addEventListener('keydown', keyDownHandler);
+          document.body.addEventListener('keyup', keyUpHandler);
+        };
+        
+        const canvasInit = () => {
+          canvas = document.querySelector('canvas');
+          ctx = canvas.getContext('2d');
+        };
+        
+        const init = () => {
+          canvasInit();
+          
+          ioInit();
+        };
+        
+        window.onload = init;
+      }());
+    </script>
+  </head>
+  <body>
+    <canvas width="500" height="300">
+      Get a real browser!
+    </canvas>
+  </body>
+</html>
